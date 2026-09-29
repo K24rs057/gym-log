@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GYM LOG</title>
+<meta name="theme-color" content="#0d0d0d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <div class="top"><span class="logo">GYM LOG</span><span class="date" id="date"></span></div>
+
+  <main id="today">
+    <div class="gap" id="gap"></div>
+    <div class="tag">TODAY</div>
+    <div class="menu" id="menu"></div>
+    <div class="dots" id="dots" aria-label="サイクル"></div>
+    <div class="leg" id="leg">5回目のジム日。最後にレッグエクステンション</div>
+    <div class="done" id="done" hidden></div>
+    <div id="exs"></div>
+    <button class="cta" id="save" type="button">記録する</button>
+    <div class="toast" id="toast" hidden></div>
+  </main>
+
+  <main id="history" hidden>
+    <h2>HISTORY</h2>
+    <select id="exSel" aria-label="種目"></select>
+    <div class="chart"><svg id="svg" viewBox="0 0 360 200" role="img" aria-label="重量の推移グラフ"></svg></div>
+    <div class="zoom">
+      <button type="button" id="zin" aria-label="拡大">＋</button>
+      <button type="button" id="zout" aria-label="縮小">−</button>
+      <button type="button" id="zl" aria-label="過去へ">←</button>
+      <button type="button" id="zr" aria-label="最新へ">→</button>
+      <button type="button" id="z7">1週間</button>
+      <button type="button" id="z30">1か月</button>
+      <button type="button" id="zall">全体</button>
+      <span class="rng" id="rng"></span>
+    </div>
+    <div class="tag" style="margin-top:14px">RECENT</div>
+    <div class="hist" id="hist"></div>
+  </main>
+
+  <main id="settings" hidden>
+    <h2>SETTINGS</h2>
+    <div class="tag">MENU</div>
+    <div class="box">
+      次に出すメニュー
+      <div class="inline"><select id="stageSel" aria-label="次に出すメニュー"></select></div>
+      <div class="field"><label for="gymCount">ジムに行った日の数(脚は5回ごと)</label><input type="number" id="gymCount" min="0" inputmode="numeric"></div>
+    </div>
+
+    <div class="grp"><div class="tag">EXERCISES</div>
+      <div id="exList"></div>
+      <div class="box">種目を追加
+        <div class="inline">
+          <input type="text" id="newName" placeholder="種目名" aria-label="種目名">
+          <select id="newPart" aria-label="部位" style="width:96px"></select>
+        </div>
+        <div class="row2"><button class="ghost" type="button" id="addEx">追加する</button></div>
+      </div>
+    </div>
+
+    <div class="grp"><div class="tag">BACKUP</div>
+      <div class="box">記録はこのスマホの中だけにあります。ときどき書き出して保管します。
+        <div class="row2"><button class="ghost" type="button" id="exportBtn">書き出す</button><button class="ghost" type="button" id="importBtn">読み込む</button></div>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <div class="confirm" id="importConfirm" hidden>
+          <span id="importMsg"></span>
+          <div class="row2"><button class="ghost danger" type="button" id="importYes">置き換える</button><button class="ghost" type="button" id="importNo">やめる</button></div>
+        </div>
+        <div class="toast" id="backupMsg" hidden></div>
+      </div>
+    </div>
+
+    <div class="grp"><div class="tag">NOTIFY</div>
+      <div class="box">最後の記録から3日たったら通知(ntfy)。スマホに ntfy アプリを入れて、下のトピック名を購読します。
+        <div class="field"><label for="topic">トピック名(他人に教えない)</label><input type="text" id="topic" autocomplete="off" spellcheck="false"></div>
+        <div class="row2"><button class="ghost" type="button" id="genTopic">名前を作る</button><button class="ghost" type="button" id="testNotify">テスト通知</button></div>
+        <div class="toast" id="notifyMsg" hidden></div>
+      </div>
+    </div>
+    <p class="note" id="ver"></p>
+  </main>
+
+  <nav class="tabs" aria-label="画面"><div class="in">
+    <button type="button" class="on" data-t="today">TODAY</button>
+    <button type="button" data-t="history">HISTORY</button>
+    <button type="button" data-t="settings">SETTINGS</button>
+  </div></nav>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
