@@ -36,4 +36,4 @@
 ## 公開先
 - URL: https://k24rs057.github.io/gym-log/ (GitHub Pages、リポジトリ `K24rs057/gym-log`、公開)
 - lab は非公開リポジトリのため Pages が使えない。アプリの部品だけを `gym-log` リポジトリに置いている。
-- 更新するとき: `lab` 側で直したファイルを `gym-log` リポジトリにも反映して push する(`data/` は含めない)。
+- 更新するとき: `lab` 側で直して commit・push したあと、PowerShell で `.\deploy.ps1` を実行する。公開用の7ファイル(と `tools/import_memo.py`)だけが `gym-log` リポジトリにコピーされ、数分で公開に反映される。`data/` と `seed.json` はコピーされない。

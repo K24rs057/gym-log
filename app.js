@@ -79,8 +79,14 @@
     return fresh();
   }
   var db = load();
-  function persist() {
+  function persistRaw() {
     try { localStorage.setItem(KEY, JSON.stringify(db)); return true; } catch (e) { return false; }
+  }
+  function persist() {
+    db.settings.updatedAt = Date.now();
+    var ok = persistRaw();
+    schedulePush();
+    return ok;
   }
   function exById(id) {
     for (var i = 0; i < db.exercises.length; i++) { if (db.exercises[i].id === id) { return db.exercises[i]; } }
@@ -447,6 +453,7 @@
     $("gymCount").value = db.settings.gymCount;
     $("newPart").innerHTML = PARTS.map(function (p) { return '<option>' + p + '</option>'; }).join("");
     $("topic").value = db.settings.ntfyTopic || "";
+    renderAccount();
     $("ver").textContent = "GYM LOG " + VERSION + " / 記録 " + db.sessions.length + "日分";
     $("exList").innerHTML = PARTS.map(function (p) {
       var items = db.exercises.filter(function (e) { return e.part === p; });
@@ -580,8 +587,128 @@
     });
   });
 
+  /* ---------- クラウド同期 (Firebase) ---------- */
+  var Sync = { ready: false, user: null, auth: null, fs: null, timer: null, pending: false, loading: false };
+  var SDK = [
+    "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js",
+    "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js",
+    "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"
+  ];
+  function loadScripts(list) {
+    return list.reduce(function (p, src) {
+      return p.then(function () {
+        return new Promise(function (res, rej) {
+          var el = document.createElement("script");
+          el.src = src; el.onload = res; el.onerror = rej;
+          document.head.appendChild(el);
+        });
+      });
+    }, Promise.resolve());
+  }
+  function hhmm() { var d = new Date(); return p2(d.getHours()) + ":" + p2(d.getMinutes()); }
+  function acctSay(text, warn) { var t = $("acctMsg"); t.hidden = false; t.textContent = text; t.classList.toggle("warn", !!warn); }
+  function renderAccount() {
+    var st = $("acctState");
+    if (!window.GYM_FIREBASE || !window.GYM_FIREBASE.apiKey) {
+      st.textContent = "クラウド同期は、まだ設定されていません。"; $("acctForm").hidden = true; $("acctOut").hidden = true; return;
+    }
+    if (!Sync.ready) { st.textContent = "同期の準備中です…(ネットにつながっていないと、準備できません)"; $("acctForm").hidden = true; $("acctOut").hidden = true; return; }
+    if (Sync.user) {
+      st.textContent = "ログイン中: " + Sync.user.email; $("acctForm").hidden = true; $("acctOut").hidden = false;
+    } else {
+      st.textContent = "ログインすると、スマホとPCで同じ記録を見られます。"; $("acctForm").hidden = false; $("acctOut").hidden = true;
+    }
+  }
+  function authError(e) {
+    var c = (e && e.code) || "";
+    if (c === "auth/invalid-email") { return "メールアドレスの形が違います。"; }
+    if (c === "auth/weak-password") { return "パスワードは6文字以上にしてください。"; }
+    if (c === "auth/email-already-in-use") { return "このメールアドレスは登録済みです。「ログイン」を押してください。"; }
+    if (c === "auth/user-not-found" || c === "auth/wrong-password" || c === "auth/invalid-credential" || c === "auth/invalid-login-credentials") { return "メールアドレスかパスワードが違います。"; }
+    if (c === "auth/network-request-failed") { return "ネットにつながっていません。"; }
+    if (c === "auth/operation-not-allowed") { return "Firebase 側で、メール/パスワードのログインが有効になっていません。"; }
+    if (c === "auth/unauthorized-domain") { return "Firebase 側の「承認済みドメイン」に、このサイトが登録されていません。"; }
+    return "うまくいきませんでした(" + (c || "不明") + ")。";
+  }
+  function refreshAll() {
+    buildToday();
+    if (!$("history").hidden) { renderHistory(); }
+    if (!$("settings").hidden) { renderSettings(); }
+  }
+  function docRef() { return Sync.fs.collection("users").doc(Sync.user.uid); }
+  function pushNow() {
+    if (!Sync.ready || !Sync.user) { return Promise.resolve(false); }
+    var payload = { v: 1, updatedAt: db.settings.updatedAt || Date.now(), data: JSON.stringify(db) };
+    return docRef().set(payload).then(function () { Sync.pending = false; $("acctMsg").hidden = true; return true; })
+      .catch(function () { Sync.pending = true; return false; });
+  }
+  function schedulePush() {
+    if (!Sync.ready || !Sync.user) { return; }
+    clearTimeout(Sync.timer);
+    Sync.timer = setTimeout(function () { pushNow().then(function (ok) { if (!ok) { acctSay("クラウドに送れませんでした。ネットにつながると、自動で再送します。", true); } }); }, 800);
+  }
+  function pullAndMerge() {
+    if (!Sync.ready || !Sync.user || Sync.loading) { return Promise.resolve(); }
+    Sync.loading = true;
+    return docRef().get().then(function (snap) {
+      Sync.loading = false;
+      if (!snap.exists) {
+        if (db.sessions.length || db.settings.updatedAt) { return pushNow().then(function (ok) { acctSay(ok ? "この端末の記録を、クラウドに保存しました(" + hhmm() + ")。" : "クラウドに送れませんでした。", !ok); }); }
+        return null;
+      }
+      var remote = snap.data(), rdb = null;
+      try { rdb = JSON.parse(remote.data); } catch (e) { rdb = null; }
+      if (!rdb || !Array.isArray(rdb.sessions) || !Array.isArray(rdb.exercises)) { acctSay("クラウドの記録を読めませんでした。", true); return null; }
+      var rt = (rdb.settings && rdb.settings.updatedAt) || remote.updatedAt || 0, lt = db.settings.updatedAt || 0;
+      if (rt > lt) {
+        db = normalize(rdb);
+        persistRaw();
+        refreshAll();
+        acctSay("クラウドの記録を読み込みました(" + db.sessions.length + "日分、" + hhmm() + ")。");
+      } else if (lt > rt) {
+        return pushNow().then(function (ok) { acctSay(ok ? "この端末の記録を、クラウドに送りました(" + hhmm() + ")。" : "クラウドに送れませんでした。", !ok); });
+      } else {
+        acctSay("クラウドと同じ内容です(" + hhmm() + ")。");
+      }
+      return null;
+    }).catch(function () { Sync.loading = false; acctSay("クラウドから読めませんでした。ネットにつながっているか確認してください。", true); });
+  }
+  function initSync() {
+    var cfg = window.GYM_FIREBASE;
+    renderAccount();
+    if (!cfg || !cfg.apiKey || Sync.ready) { return; }
+    loadScripts(SDK).then(function () {
+      if (!window.firebase.apps.length) { window.firebase.initializeApp(cfg); }
+      Sync.auth = window.firebase.auth();
+      Sync.fs = window.firebase.firestore();
+      Sync.ready = true;
+      Sync.auth.onAuthStateChanged(function (u) {
+        Sync.user = u; renderAccount();
+        if (u) { pullAndMerge(); }
+      });
+      renderAccount();
+    }).catch(function () { renderAccount(); });
+  }
+  $("acctLogin").addEventListener("click", function () { doAuth(false); });
+  $("acctSignup").addEventListener("click", function () { doAuth(true); });
+  function doAuth(signup) {
+    var em = $("acctEmail").value.trim(), pw = $("acctPass").value;
+    if (!em || !pw) { acctSay("メールアドレスとパスワードを入れてください。", true); return; }
+    if (!Sync.ready) { acctSay("同期の準備ができていません。ネットにつないで、開き直してください。", true); return; }
+    var p = signup ? Sync.auth.createUserWithEmailAndPassword(em, pw) : Sync.auth.signInWithEmailAndPassword(em, pw);
+    p.then(function () { $("acctPass").value = ""; acctSay(signup ? "登録しました。" : "ログインしました。"); }).catch(function (e) { acctSay(authError(e), true); });
+  }
+  $("acctLogout").addEventListener("click", function () {
+    if (Sync.auth) { Sync.auth.signOut().then(function () { acctSay("ログアウトしました。この端末の記録は、そのまま残っています。"); }); }
+  });
+  $("acctSync").addEventListener("click", function () { pullAndMerge(); });
+  window.addEventListener("online", function () {
+    if (!Sync.ready) { initSync(); } else if (Sync.user && Sync.pending) { pushNow(); }
+  });
+
   /* ---------- 起動 ---------- */
   buildToday();
+  initSync();
   if (db.settings.notifyPending) { afterSaveNotify(); }
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     navigator.serviceWorker.register("sw.js").catch(function () { /* 登録できなくても使える */ });

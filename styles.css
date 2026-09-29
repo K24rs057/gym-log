@@ -84,7 +84,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 .tabs button.on{color:var(--fg);border-top-color:var(--accent)}
 
 h2{font-weight:900;font-size:26px;margin:16px 0 6px}
-select,input[type=text],input[type=number]{background:var(--panel);color:var(--fg);border:1px solid var(--line);padding:10px 12px;width:100%;border-radius:0}
+select,input[type=text],input[type=number],input[type=password]{background:var(--panel);color:var(--fg);border:1px solid var(--line);padding:10px 12px;width:100%;border-radius:0}
 .chart{background:var(--panel);padding:12px;margin-block:10px}
 .chart svg{width:100%;height:auto;display:block}
 .zoom{display:flex;gap:8px;align-items:center;flex-wrap:wrap}

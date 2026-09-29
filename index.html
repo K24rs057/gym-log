@@ -71,6 +71,18 @@
       </div>
     </div>
 
+    <div class="grp"><div class="tag">ACCOUNT</div>
+      <div class="box"><div id="acctState"></div>
+        <div id="acctForm" hidden>
+          <div class="field"><label for="acctEmail">メールアドレス</label><input type="text" id="acctEmail" autocomplete="username" inputmode="email" autocapitalize="off"></div>
+          <div class="field"><label for="acctPass">パスワード(6文字以上)</label><input type="password" id="acctPass" autocomplete="current-password"></div>
+          <div class="row2"><button class="ghost" type="button" id="acctLogin">ログイン</button><button class="ghost" type="button" id="acctSignup">新規登録</button></div>
+        </div>
+        <div class="row2" id="acctOut" hidden><button class="ghost" type="button" id="acctSync">今すぐ同期</button><button class="ghost" type="button" id="acctLogout">ログアウト</button></div>
+        <div class="toast" id="acctMsg" hidden></div>
+      </div>
+    </div>
+
     <div class="grp"><div class="tag">BACKUP</div>
       <div class="box">記録はこのスマホの中だけにあります。ときどき書き出して保管します。
         <div class="row2"><button class="ghost" type="button" id="exportBtn">書き出す</button><button class="ghost" type="button" id="importBtn">読み込む</button></div>
@@ -99,6 +111,7 @@
     <button type="button" data-t="settings">SETTINGS</button>
   </div></nav>
 </div>
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
