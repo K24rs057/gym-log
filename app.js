@@ -123,12 +123,23 @@
     });
     return out;
   }
+  function recStage() {
+    var td = today();
+    for (var i = db.sessions.length - 1; i >= 0; i--) {
+      if (db.sessions[i].date < td) {
+        return typeof db.sessions[i].stage === "number" ? (db.sessions[i].stage + 1) % 3 : 0;
+      }
+    }
+    return 0;
+  }
   function legToday() { return ((db.settings.gymCount + 1) % 5 === 0) && !todaySession; }
 
   function buildToday() {
     var td = today();
     todaySession = sessionOn(td);
-    stageIdx = (todaySession && typeof todaySession.stage === "number") ? todaySession.stage : (db.settings.nextStage % 3);
+    if (todaySession && typeof todaySession.stage === "number") { stageIdx = todaySession.stage; }
+    else if (db.settings.pickDate === td) { stageIdx = db.settings.nextStage % 3; }
+    else { stageIdx = recStage(); }
     var list = pickMenu(stageIdx);
     var leg = exById("leg-extension");
     if (legToday() && leg) { list.push(leg); }
@@ -183,12 +194,14 @@
       else if (n >= 1) { gap.className = "gap s1"; gap.innerHTML = n + "日ぶり"; }
     }
     $("menu").textContent = STAGES[stageIdx].name;
+    var rec = recStage();
     $("dots").innerHTML = STAGES.map(function (s, k) {
-      return '<button type="button" class="dot' + (k === stageIdx ? " on" : "") + '" data-s="' + k + '">' + s.name + "</button>";
+      return '<button type="button" class="dot' + (k === stageIdx ? " on" : "") + (k === rec ? " rec" : "") + '" data-s="' + k + '">' + (k === rec ? '<span class="mk">今日</span>' : "") + s.name + "</button>";
     }).join("");
     $("leg").classList.toggle("show", legToday());
     var done = $("done");
     if (todaySession) { done.hidden = false; done.textContent = "今日は記録済みです。直して「記録する」を押すと上書きします。"; }
+    else if (stageIdx !== rec) { done.hidden = false; done.textContent = "今日のおすすめは「" + STAGES[rec].name + "」です。"; }
     else { done.hidden = true; }
     if (!state.length) {
       $("exs").innerHTML = '<div class="empty">この部位の種目がありません。SETTINGS で種目を追加してください。</div>';
@@ -220,6 +233,7 @@
     var b = ev.target.closest("button[data-s]");
     if (!b || todaySession) { return; }
     db.settings.nextStage = +b.getAttribute("data-s");
+    db.settings.pickDate = today();
     persist(); buildToday();
   });
   $("exs").addEventListener("click", function (ev) {
@@ -434,7 +448,7 @@
       }).join("") + '</div>';
     }).join("");
   }
-  $("stageSel").addEventListener("change", function (e) { db.settings.nextStage = +e.target.value; persist(); buildToday(); });
+  $("stageSel").addEventListener("change", function (e) { db.settings.nextStage = +e.target.value; db.settings.pickDate = today(); persist(); buildToday(); });
   $("gymCount").addEventListener("change", function (e) { db.settings.gymCount = Math.max(0, parseInt(e.target.value, 10) || 0); persist(); buildToday(); });
   $("exList").addEventListener("change", function (ev) {
     var inp = ev.target.closest("input[data-f]");

@@ -31,3 +31,8 @@
 
 ## 公開するときの注意
 `data/` は公開しない。公開するのは `index.html` `app.js` `styles.css` `manifest.webmanifest` `sw.js` `icon.svg` だけ。
+
+## 公開先
+- URL: https://k24rs057.github.io/gym-log/ (GitHub Pages、リポジトリ `K24rs057/gym-log`、公開)
+- lab は非公開リポジトリのため Pages が使えない。アプリの部品だけを `gym-log` リポジトリに置いている。
+- 更新するとき: `lab` 側で直したファイルを `gym-log` リポジトリにも反映して push する(`data/` は含めない)。
