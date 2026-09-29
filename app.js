@@ -3,11 +3,14 @@
   var KEY = "gym-log-v1";
   var VERSION = "v1";
   var STAGES = [
-    { name: "胸", parts: ["胸"] },
-    { name: "肩 + 背中", parts: ["肩", "背中"] },
-    { name: "腕 + 腹", parts: ["腕", "腹"] }
+    { name: "胸 + 肩", parts: ["胸", "肩"] },
+    { name: "背中 + 腕", parts: ["背中", "腕"] }
   ];
-  var LIMIT = { "胸": 4, "背中": 3, "肩": 2, "腕": 5, "腹": 1 };
+  var DEFAULT_MENUS = [
+    ["bench-press", "incline-chest-press", "bench-press-smith", "shoulder-press"],
+    ["lat-pulldown", "pull-up", "cable-pressdown", "biceps-curl"]
+  ];
+  var ABS_EVERY = 3, LEG_EVERY = 5;
   var PARTS = ["胸", "背中", "肩", "腕", "腹", "脚"];
   var DEFAULT_EX = [
     ["bench-press", "ベンチプレス", "胸", 2.5, 10],
@@ -106,43 +109,48 @@
     }
     return null;
   }
-  function pickMenu(idx) {
-    var st = STAGES[idx], out = [], td = dnum(today());
-    st.parts.forEach(function (part) {
-      var stats = db.exercises.filter(function (e) { return e.part === part; }).map(function (e) {
-        var c = 0, last = -1e9;
-        db.sessions.forEach(function (s) {
-          if (dnum(s.date) < td - 90) { return; }
-          s.entries.forEach(function (en) { if (en.exId === e.id) { c++; last = Math.max(last, dnum(s.date)); } });
-        });
-        return { e: e, c: c, last: last };
-      });
-      var used = stats.filter(function (x) { return x.c > 0; }).sort(function (a, b) { return b.c - a.c || b.last - a.last; });
-      if (!used.length) { used = stats; }
-      used.slice(0, LIMIT[part] || 3).forEach(function (x) { out.push(x.e); });
-    });
+  function menuIds(idx) {
+    var m = db.settings.menus;
+    return (m && m[idx]) ? m[idx] : DEFAULT_MENUS[idx];
+  }
+  function menuFor(idx) {
+    var out = [];
+    menuIds(idx).forEach(function (id) { var e = exById(id); if (e) { out.push(e); } });
     return out;
   }
+  function inferStage(sess) {
+    var a = 0, b = 0;
+    sess.entries.forEach(function (en) {
+      var e = exById(en.exId);
+      if (!e) { return; }
+      if (e.part === "胸" || e.part === "肩") { a++; }
+      else if (e.part === "背中" || e.part === "腕") { b++; }
+    });
+    return b > a ? 1 : 0;
+  }
+  function stageOf(sess) { return sess.cycle === 2 && typeof sess.stage === "number" ? sess.stage : inferStage(sess); }
   function recStage() {
     var td = today();
     for (var i = db.sessions.length - 1; i >= 0; i--) {
       if (db.sessions[i].date < td) {
-        return typeof db.sessions[i].stage === "number" ? (db.sessions[i].stage + 1) % 3 : 0;
+        return (stageOf(db.sessions[i]) + 1) % 2;
       }
     }
     return 0;
   }
-  function legToday() { return ((db.settings.gymCount + 1) % 5 === 0) && !todaySession; }
+  function legToday() { return ((db.settings.gymCount + 1) % LEG_EVERY === 0) && !todaySession; }
+  function absToday() { return ((db.settings.gymCount + 1) % ABS_EVERY === 0) && !todaySession; }
 
   function buildToday() {
     var td = today();
     todaySession = sessionOn(td);
-    if (todaySession && typeof todaySession.stage === "number") { stageIdx = todaySession.stage; }
-    else if (db.settings.pickDate === td) { stageIdx = db.settings.nextStage % 3; }
+    if (todaySession) { stageIdx = stageOf(todaySession); }
+    else if (db.settings.pickDate === td) { stageIdx = db.settings.nextStage % 2; }
     else { stageIdx = recStage(); }
-    var list = pickMenu(stageIdx);
-    var leg = exById("leg-extension");
-    if (legToday() && leg) { list.push(leg); }
+    var list = menuFor(stageIdx);
+    var abs = exById("abdominal"), leg = exById("leg-extension");
+    if (absToday() && abs && list.indexOf(abs) < 0) { list.push(abs); }
+    if (legToday() && leg && list.indexOf(leg) < 0) { list.push(leg); }
     if (todaySession) {
       todaySession.entries.forEach(function (en) {
         var e = exById(en.exId);
@@ -199,6 +207,7 @@
       return '<button type="button" class="dot' + (k === stageIdx ? " on" : "") + (k === rec ? " rec" : "") + '" data-s="' + k + '">' + (k === rec ? '<span class="mk">今日</span>' : "") + s.name + "</button>";
     }).join("");
     $("leg").classList.toggle("show", legToday());
+    $("abs").classList.toggle("show", absToday());
     var done = $("done");
     if (todaySession) { done.hidden = false; done.textContent = "今日は記録済みです。直して「記録する」を押すと上書きします。"; }
     else if (stageIdx !== rec) { done.hidden = false; done.textContent = "今日のおすすめは「" + STAGES[rec].name + "」です。"; }
@@ -276,7 +285,7 @@
     var base = db.settings.lastSaveTs || Date.now();
     var remain = Math.round(3 * 86400 - (Date.now() - base) / 1000);
     if (last && remain <= 0) { return Promise.resolve("overdue"); }
-    var nextName = STAGES[db.settings.nextStage % 3].name;
+    var nextName = STAGES[db.settings.nextStage % 2].name;
     return fetch("https://ntfy.sh/" + encodeURIComponent(topic) + "/gymlog-remind", {
       method: "POST",
       headers: { "Delay": Math.max(60, remain) + "s", "Title": "GYM LOG", "Tags": "muscle" },
@@ -303,16 +312,16 @@
     if (todaySession) {
       todaySession.entries = entries;
     } else {
-      db.sessions.push({ date: date, stage: stageIdx, parts: STAGES[stageIdx].parts.slice(), entries: entries });
+      db.sessions.push({ date: date, cycle: 2, stage: stageIdx, parts: STAGES[stageIdx].parts.slice(), entries: entries });
     }
     if (first) {
-      db.settings.nextStage = (stageIdx + 1) % 3;
+      db.settings.nextStage = (stageIdx + 1) % 2;
       db.settings.gymCount++;
     }
     db.settings.lastSaveTs = Date.now();
     normalize(db);
     var ok = persist();
-    var msg = "保存しました。" + entries.length + "種目を記録" + (skipped ? "、" + skipped + "種目はスキップ" : "") + "。次は「" + STAGES[db.settings.nextStage % 3].name + "」です。";
+    var msg = "保存しました。" + entries.length + "種目を記録" + (skipped ? "、" + skipped + "種目はスキップ" : "") + "。次は「" + STAGES[db.settings.nextStage % 2].name + "」です。";
     if (!ok) { msg = "保存できませんでした。ブラウザの保存領域がいっぱいか、使えない状態です。"; }
     buildToday();
     showToast(msg, !ok);
@@ -394,7 +403,7 @@
     span = 7; endD = 1e9;
     drawChart();
     var rows = db.sessions.slice(-30).reverse().map(function (s) {
-      var label = (typeof s.stage === "number") ? STAGES[s.stage].name : (s.parts && s.parts.length ? s.parts.join("・") : "");
+      var label = (s.cycle === 2 && typeof s.stage === "number") ? STAGES[s.stage].name : (s.parts && s.parts.length ? s.parts.join("・") : "");
       var lines = s.entries.map(function (en) {
         var e = exById(en.exId);
         return esc(e ? e.name : en.exId) + " " + en.sets.map(function (st) { return fmt(st.w) + "kg×" + st.r; }).join(" / ");
@@ -424,7 +433,7 @@
       if (idx >= 0) {
         var removed = db.sessions.splice(idx, 1)[0];
         db.settings.gymCount = Math.max(0, db.settings.gymCount - 1);
-        if (idx === db.sessions.length && typeof removed.stage === "number") { db.settings.nextStage = removed.stage; }
+        if (idx === db.sessions.length && removed.cycle === 2 && typeof removed.stage === "number") { db.settings.nextStage = removed.stage; }
         persist(); renderHistory(); buildToday();
       }
     }
@@ -433,7 +442,8 @@
   /* ---------- 設定 ---------- */
   function renderSettings() {
     $("stageSel").innerHTML = STAGES.map(function (s, i) { return '<option value="' + i + '">' + s.name + '</option>'; }).join("");
-    $("stageSel").value = String(db.settings.nextStage % 3);
+    $("stageSel").value = String(db.settings.nextStage % 2);
+    renderMenuEdit();
     $("gymCount").value = db.settings.gymCount;
     $("newPart").innerHTML = PARTS.map(function (p) { return '<option>' + p + '</option>'; }).join("");
     $("topic").value = db.settings.ntfyTopic || "";
@@ -448,6 +458,35 @@
       }).join("") + '</div>';
     }).join("");
   }
+  function renderMenuEdit() {
+    $("menuEdit").innerHTML = STAGES.map(function (st, k) {
+      var ids = menuIds(k);
+      var chips = ids.map(function (id, n) {
+        var e = exById(id);
+        return '<span class="chip">' + esc(e ? e.name : id) + '<button type="button" data-mrm="' + k + ',' + n + '" aria-label="外す">✕</button></span>';
+      }).join("");
+      var opts = db.exercises.filter(function (e) { return ids.indexOf(e.id) < 0; }).map(function (e) {
+        return '<option value="' + esc(e.id) + '">' + esc(e.name) + '(' + e.part + ')</option>';
+      }).join("");
+      return '<div class="grp"><div class="tag">' + esc(st.name) + '</div><div class="chips">' + (chips || '<span class="note">種目がありません</span>') + '</div>' +
+        '<div class="inline"><select data-madd-sel="' + k + '" aria-label="' + esc(st.name) + 'に足す種目">' + opts + '</select><button class="ghost" type="button" data-madd="' + k + '" style="flex:none;width:96px">足す</button></div></div>';
+    }).join("");
+  }
+  $("menuEdit").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b) { return; }
+    if (!db.settings.menus) { db.settings.menus = [menuIds(0).slice(), menuIds(1).slice()]; }
+    if (b.hasAttribute("data-mrm")) {
+      var a = b.getAttribute("data-mrm").split(",");
+      db.settings.menus[+a[0]].splice(+a[1], 1);
+    } else if (b.hasAttribute("data-madd")) {
+      var k = +b.getAttribute("data-madd");
+      var sel = document.querySelector('select[data-madd-sel="' + k + '"]');
+      if (!sel || !sel.value) { return; }
+      db.settings.menus[k].push(sel.value);
+    } else { return; }
+    persist(); renderMenuEdit(); buildToday();
+  });
   $("stageSel").addEventListener("change", function (e) { db.settings.nextStage = +e.target.value; db.settings.pickDate = today(); persist(); buildToday(); });
   $("gymCount").addEventListener("change", function (e) { db.settings.gymCount = Math.max(0, parseInt(e.target.value, 10) || 0); persist(); buildToday(); });
   $("exList").addEventListener("change", function (ev) {

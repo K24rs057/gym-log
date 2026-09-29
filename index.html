@@ -22,7 +22,8 @@
     <div class="tag">TODAY</div>
     <div class="menu" id="menu"></div>
     <div class="dots" id="dots" aria-label="サイクル"></div>
-    <div class="leg" id="leg">5回目のジム日。最後にレッグエクステンション</div>
+    <div class="leg" id="abs">3回ごとの日。最後に腹(アブドミナル)</div>
+    <div class="leg" id="leg">5回ごとの日。最後にレッグエクステンション</div>
     <div class="done" id="done" hidden></div>
     <div id="exs"></div>
     <button class="cta" id="save" type="button">記録する</button>
@@ -53,7 +54,10 @@
     <div class="box">
       次に出すメニュー
       <div class="inline"><select id="stageSel" aria-label="次に出すメニュー"></select></div>
-      <div class="field"><label for="gymCount">ジムに行った日の数(脚は5回ごと)</label><input type="number" id="gymCount" min="0" inputmode="numeric"></div>
+      <div class="field"><label for="gymCount">ジムに行った日の数(腹は3回ごと、脚は5回ごと)</label><input type="number" id="gymCount" min="0" inputmode="numeric"></div>
+    </div>
+    <div class="grp"><div class="tag">MENU ITEMS</div>
+      <div id="menuEdit"></div>
     </div>
 
     <div class="grp"><div class="tag">EXERCISES</div>

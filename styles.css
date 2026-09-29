@@ -112,3 +112,7 @@ select,input[type=text],input[type=number]{background:var(--panel);color:var(--f
 .inline>*{min-width:0}
 .confirm{margin-top:8px;padding:10px 12px;background:var(--panel2);font-size:13px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);padding:6px 6px 6px 12px;font-size:13px}
+.chip button{background:transparent;border:0;color:var(--sub);font-size:14px;width:28px;height:28px}
