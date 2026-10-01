@@ -647,7 +647,7 @@
     clearTimeout(Sync.timer);
     Sync.timer = setTimeout(function () { pushNow().then(function (ok) { if (!ok) { acctSay("クラウドに送れませんでした。ネットにつながると、自動で再送します。", true); } }); }, 800);
   }
-  function pullAndMerge() {
+  function pullAndMerge(retried) {
     if (!Sync.ready || !Sync.user || Sync.loading) { return Promise.resolve(); }
     Sync.loading = true;
     return docRef().get().then(function (snap) {
@@ -671,7 +671,11 @@
         acctSay("クラウドと同じ内容です(" + hhmm() + ")。");
       }
       return null;
-    }).catch(function () { Sync.loading = false; acctSay("クラウドから読めませんでした。ネットにつながっているか確認してください。", true); });
+    }).catch(function () {
+      Sync.loading = false;
+      if (!retried) { setTimeout(function () { pullAndMerge(true); }, 2000); return; }
+      acctSay("クラウドから読めませんでした。ネットにつながっているか確認してください。", true);
+    });
   }
   function initSync() {
     var cfg = window.GYM_FIREBASE;
@@ -684,7 +688,7 @@
       Sync.ready = true;
       Sync.auth.onAuthStateChanged(function (u) {
         Sync.user = u; renderAccount();
-        if (u) { pullAndMerge(); }
+        if (u) { pullAndMerge(false); }
       });
       renderAccount();
     }).catch(function () { renderAccount(); });
@@ -701,7 +705,7 @@
   $("acctLogout").addEventListener("click", function () {
     if (Sync.auth) { Sync.auth.signOut().then(function () { acctSay("ログアウトしました。この端末の記録は、そのまま残っています。"); }); }
   });
-  $("acctSync").addEventListener("click", function () { pullAndMerge(); });
+  $("acctSync").addEventListener("click", function () { pullAndMerge(false); });
   window.addEventListener("online", function () {
     if (!Sync.ready) { initSync(); } else if (Sync.user && Sync.pending) { pushNow(); }
   });
